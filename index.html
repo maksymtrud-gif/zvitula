@@ -64,14 +64,15 @@ const LISTS=['Екіпаж','Засіб','Ціль','Район виконанн
 const T={d:'date',t:'time',s:'select',x:'text',c:'coord',a:'area'};
 const REPORTS={
  'Виліт':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Ведучий','x'],['Засіб','s'],['АКБ','x'],['Виліт','x'],['Котушка','x'],['Ціль','s'],['Район виконання','s'],['Зона відповідальності','x'],['Координати','c'],['Підсвітка','x'],['БК','s'],['Відстань','x'],['Результат','a'],['Коментар','a']],
- 'Прибуття':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Коментар','a']],
- 'Вибуття':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Коментар','a']],
- 'Відсутність вильотів':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Причина','a']],
- 'Обстріл':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Чим обстріляли','x'],['Наслідки','a'],['Коментар','a']],
- 'Надзвичайна подія':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Що сталося','a'],['Наслідки','a']]
+ 'Прибуття':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Засіб','s'],['Результат','x','Прибув']],
+ 'Вибуття':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Засіб','s'],['Результат','x','Вибув']],
+ 'Відсутність вильотів':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Засіб','s'],['Результат','x','','Несприятлива погода'],['Коментар','a','','Відсутність вильотів з 08:00 через…']],
+ 'Обстріл':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Засіб','s'],['Характер події','a','','Приліт ФПВ по позиції…'],['Статус екіпажу','x','','4.5.0'],['Статус особистої зброї','x','','4.5.0'],['Статус майна','m']],
+ 'Надзвичайна подія':[['Дата','d'],['Час','t'],['Екіпаж','s'],['Позиція','x'],['Координати','c'],['Засіб','s'],['Характер події','a','','Приліт ФПВ по авто…'],['Статус екіпажу','x','','4.5.0'],['Статус особистої зброї','x','','4.5.0'],['Статус майна','m']]
 };
 const ls={get(k,d){try{const v=localStorage.getItem('zvit_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('zvit_'+k,JSON.stringify(v))}catch(e){}}};
 let type=ls.get('type','Виліт'), vals={}, video=null;
+const V=()=>vals[type]||(vals[type]={});
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()};
@@ -82,21 +83,24 @@ function renderTabs(){$('tabs').innerHTML='';Object.keys(REPORTS).forEach(k=>{co
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function renderForm(){
  const f=$('form');f.innerHTML='';
- REPORTS[type].forEach(([name,k])=>{
-  const r=document.createElement('div');r.className='row';
-  let v=vals[name]; if(v==null){v=k==='d'?today():k==='t'?now():sticky.includes(name)?ls.get('last_'+name,''):'';vals[name]=v}
+ REPORTS[type].forEach(([name,k,def,ph])=>{
+  const r=document.createElement('div');r.className='row';const P=ph?' placeholder="'+esc(ph)+'"':'';
+  let v=V()[name]; if(v==null){v=k==='d'?today():k==='t'?now():sticky.includes(name)?ls.get('last_'+name,''):(def||'');V()[name]=v}
   let h='<label>'+esc(name)+'</label>';
   if(k==='s'){const opts=ls.get('list_'+name,[]);h+='<div class="sel"><select data-n="'+esc(name)+'"><option value="">—</option>'+opts.map(o=>'<option'+(o===v?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select><button class="sm" data-e="'+esc(name)+'">✎</button></div>'}
   else if(k==='c'){h+='<div class="coord"><input id="cpre" value="'+esc(ls.get('cprefix','37U CP'))+'" autocapitalize="characters"><input data-n="'+esc(name)+'" value="'+esc(v)+'" inputmode="numeric" placeholder="12345 67890"></div>'}
-  else if(k==='a'){h+='<textarea data-n="'+esc(name)+'">'+esc(v)+'</textarea>'}
-  else h+='<input data-n="'+esc(name)+'" value="'+esc(v)+'"'+(k==='t'?' inputmode="numeric"':'')+'>';
+  else if(k==='a'){h+='<textarea data-n="'+esc(name)+'"'+P+'>'+esc(v)+'</textarea>'}
+  else if(k==='m'){const it=V()[name+'#']||'';h+='<input data-n="'+esc(name)+'" value="'+esc(v)+'" placeholder="Втрачено / Без втрат"><label style="margin-top:8px">Перелік втраченого майна (кожен пункт з нового рядка)</label><textarea data-n="'+esc(name)+'#" placeholder="БпЛА Вампір ретранслятор&#10;АКБ 2*66000 mAh">'+esc(it)+'</textarea>'}
+  else h+='<input data-n="'+esc(name)+'" value="'+esc(v)+'"'+P+(k==='t'?' inputmode="numeric"':'')+'>';
   r.innerHTML=h;f.appendChild(r)});
- f.querySelectorAll('[data-n]').forEach(el=>el.addEventListener('input',()=>{const n=el.dataset.n;vals[n]=el.value;if(sticky.includes(n))ls.set('last_'+n,el.value);update()}));
+ f.querySelectorAll('[data-n]').forEach(el=>el.addEventListener('input',()=>{const n=el.dataset.n;V()[n]=el.value;if(sticky.includes(n))ls.set('last_'+n,el.value);update()}));
  f.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>editList(b.dataset.e));
  const cp=$('cpre');if(cp)cp.oninput=()=>{ls.set('cprefix',cp.value);update()};
  update()}
-function text(){return REPORTS[type].map(([n,k])=>{let v=vals[n]||'';if(k==='c'&&v.trim())v=(ls.get('cprefix','37U CP')+' '+v).trim();return n+': '+v}).join('\n')}
-function update(){$('out').textContent=type.toUpperCase()+'\n'+text()}
+function text(){return REPORTS[type].map(([n,k])=>{let v=V()[n]||'';if(k==='c'&&v.trim())v=(ls.get('cprefix','37U CP')+' '+v).trim();
+ if(k==='m'){const it=(V()[n+'#']||'').split('\n').map(x=>x.replace(/^[\s\-–•*]+/,'').trim()).filter(Boolean);if(it.length)v+='\n'+it.map(x=>'- '+x).join('\n')}
+ return n+': '+v}).join('\n')}
+function update(){$('out').textContent=type+'\n'+text()}
 function full(){return $('out').textContent}
 
 let curList='';
@@ -120,7 +124,7 @@ $('send').onclick=()=>{
  } else location.href='whatsapp://send?text='+encodeURIComponent(s);
 };
 function newReport(){video=null;$('file').value='';$('vname').textContent='не обрано';
- REPORTS[type].forEach(([n,k])=>{if(!sticky.includes(n))delete vals[n]});renderForm()}
+ vals[type]={};renderForm()}
 renderTabs();renderForm();
 </script>
 </body>
